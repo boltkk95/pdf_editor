@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import SignOut from './Signout';
-import { makeAuthenticatedRequest } from './api'; 
-
 
 function Home() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -11,10 +9,14 @@ function Home() {
   const [sourceIndex, setSourceIndex] = useState('');
   const [targetIndex, setTargetIndex] = useState('');
   const [message, setMessage] = useState('');
+  
+  // Function to retrieve the authentication token
+  const getAuthToken = () => {
+    return localStorage.getItem('token'); // Assuming token is stored in localStorage
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    // Check if the selected file is a PDF
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file);
     } else {
@@ -27,18 +29,23 @@ function Home() {
       alert('Please select a file.');
       return;
     }
-  
+
     const formData = new FormData();
     formData.append('file', selectedFile);
-  
+
     try {
-      const response = await makeAuthenticatedRequest('post', '/upload', formData);
-      setTotalPages(response.totalPages); // Update state with total pages
+      const response = await axios.post('http://localhost:5000/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${getAuthToken()}` // Add auth token to header
+        }
+      });
+      setTotalPages(response.data.totalPages);
     } catch (error) {
       console.error('Error uploading file:', error);
     }
   };
-  
+
   const downloadPDF = async () => {
     try {
       if (pagesToRemove.length === totalPages) {
@@ -46,17 +53,18 @@ function Home() {
         return;
       }
   
-      const response = await makeAuthenticatedRequest('post', `/download/${selectedFile.name}`, { pagesToRemove }, { responseType: 'blob' });
+      const response = await axios.post(`http://localhost:5000/download/${selectedFile.name}`, { pagesToRemove }, {
+        responseType: 'blob',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}` // Add auth token to header
+        }
+      });
   
-      // Create a URL for the blob
       const url = window.URL.createObjectURL(new Blob([response.data]));
-  
-      // Create a temporary link element
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', selectedFile.name);
   
-      // Simulate a click on the link to trigger the download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -64,8 +72,6 @@ function Home() {
       console.error('Error downloading PDF:', error);
     }
   };
-  
-  
 
   const handlePageToggle = (pageNumber) => {
     if (pagesToRemove.includes(pageNumber)) {
@@ -79,32 +85,30 @@ function Home() {
     e.preventDefault();
   
     try {
-      const response = await makeAuthenticatedRequest('post', '/movePage', {
+      const response = await axios.post('http://localhost:5000/movePage', {
         sourceIndex: parseInt(sourceIndex),
         targetIndex: parseInt(targetIndex),
         pdfFile: selectedFile.name
-      }, { responseType: 'blob' });
+      },{
+        responseType: 'blob',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}` // Add auth token to header
+        }
+      });
   
-      // Create a blob from the response data
       const url = window.URL.createObjectURL(new Blob([response.data]));
-  
-      // Create a temporary link element
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', selectedFile.name);
   
-      // Simulate a click on the link to trigger the download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch (error) {
       setMessage('Error: Internal server error');
-      console.error(error);
+      console.error(error)
     }
   };
-  
-  
-  console.log()
 
   return (
     <div>
